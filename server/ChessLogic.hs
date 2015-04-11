@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase, QuasiQuotes, TupleSections #-}
 import Control.Arrow
+import Control.Monad
 import Data.Array
 import Data.List
 import Data.Maybe
@@ -58,6 +59,8 @@ makeMove (GameState curPlayer board) = aux where
     takeWhileUnoccupied = fst . foldr (\(i,e) (a, done) -> (if done then a else (i,e):a, done || isNothing e)) ([], False)
     orthogonalDeltas = [(-1, 0), (1, 0), (0, -1), (0, 1)]
     diagonalDeltas = [(-1, -1), (-1, 1), (1, 1), (1, -1)]
-    moveIfInSet move piece set = if mvDest move `elem` set then uncheckedMakeMove move piece else Left "Invalid move"
-    uncheckedMakeMove (Move src dst) piece = Right (GameState (otherColor curPlayer) (board // [(src, Nothing), (dst, Just (piece {cpHasMoved=True}))]))
+    moveIfInSet move piece set = if mvDest move `elem` set then uncheckedMakeMove move piece else Left $ [s|Invalid move for %?|] (cpType piece)
+    uncheckedMakeMove (Move src dst) piece = do
+        when (maybe False ((== curPlayer) . cpColor) (board!dst)) $ Left "Can't take a piece of the same color"
+        Right (GameState (otherColor curPlayer) (board // [(src, Nothing), (dst, Just (piece {cpHasMoved=True}))]))
     inBounds = inRange ((1,1), (8, 8))
