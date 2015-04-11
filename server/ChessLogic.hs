@@ -47,19 +47,17 @@ makeMove (GameState curPlayer board) = aux where
     aux (Move _ dst) | not (inBounds dst) = Left $ [s|Destination %? is out of bounds|] dst
     aux move@(Move src@(x1, y1) dst@(x2, y2)) = maybe (Left $ [s|No piece is at position %?|] src) Right (board!src) >>= \case
         ChessPiece _ col _ | col /= curPlayer -> Left $ [s|%? has %?'s piece, and it's %?'s turn|] src col curPlayer
-        piece@(ChessPiece Pawn col moved) -> if (y2 `elem` map (y1+) (pawnMoveSet col moved))
-            then uncheckedMakeMove move piece -- TODO: promotion, en passant
-            else Left "Invalid move."
+        piece@(ChessPiece Pawn col moved) -> moveIfInSet move piece (map ((x1,) . (y1+)) (pawnMoveSet col moved)) -- TODO: promotion, en passant
         piece@(ChessPiece Rook _ _) -> straightLineMovement orthogonalDeltas move piece
         piece@(ChessPiece Bishop _ _) -> straightLineMovement diagonalDeltas move piece
         piece@(ChessPiece Queen _ _) -> straightLineMovement (orthogonalDeltas ++ diagonalDeltas) move piece
         _ -> error "Not yet implemented."
     pawnMoveSet col moved = map (case col of {Black -> negate; White -> id}) (if moved then [1] else [1,2])
-    straightLineMovement deltas move@(Move src dst) piece =
-        let validMoves = concatMap (\delta -> map fst . takeWhileUnoccupied $ getByDelta board delta src) deltas
-        in if dst `elem` validMoves then uncheckedMakeMove move piece else Left "Invalid move"
+    straightLineMovement deltas move@(Move src dst) piece = moveIfInSet move piece $
+        concatMap (\delta -> map fst . takeWhileUnoccupied $ getByDelta board delta src) deltas
     takeWhileUnoccupied = fst . foldr (\(i,e) (a, done) -> (if done then a else (i,e):a, done || isNothing e)) ([], False)
     orthogonalDeltas = [(-1, 0), (1, 0), (0, -1), (0, 1)]
     diagonalDeltas = [(-1, -1), (-1, 1), (1, 1), (1, -1)]
+    moveIfInSet move piece set = if mvDest move `elem` set then uncheckedMakeMove move piece else Left "Invalid move"
     uncheckedMakeMove (Move src dst) piece = Right (GameState (otherColor curPlayer) (board // [(src, Nothing), (dst, Just (piece {cpHasMoved=True}))]))
     inBounds = inRange ((1,1), (8, 8))
