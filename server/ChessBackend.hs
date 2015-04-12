@@ -2,6 +2,7 @@
 import ChessLogic
 import ChessUtil
 import Control.Concurrent
+import Control.Exception
 import Control.Monad
 import Data.Array
 import Data.IORef
@@ -28,39 +29,8 @@ htmlPage = $(fileLiteral "../client/index.html")
 httpServer :: Wai.Application
 httpServer request respond = respond $ Wai.responseLBS HTTP.status200 [] htmlPage
 
-{-
-websocketServer :: WS.ServerApp
-websocketServer pending = do
-    sock <- WS.acceptRequest pending
-    currentGameState <- newIORef defaultGameState
-    lastLoc <- newIORef Nothing
-    readIORef currentGameState >>= \gs -> WS.sendTextData sock (A.encode $ DisplayGameState gs)
-    forever $ do
-        msg <- fmap A.decode $ WS.receiveData sock
-        case msg of
-            Just (SubmitMove dst) -> do
-                gs <- readIORef currentGameState
-                readIORef lastLoc >>= \case
-                    Nothing -> do
-                        WS.sendTextData sock (A.encode $ DisplayGameState gs)
-                        WS.sendTextData sock (A.encode $ DisplayValidMoves (validMoves gs dst))
-                        writeIORef lastLoc $ Just dst
-                    Just src -> case makeMove gs (Move src dst) of
-                        Left errmsg -> do
-                            WS.sendTextData sock (A.encode $ DisplayGameState gs)
-                            WS.sendTextData sock (A.encode $ DisplayValidMoves (validMoves gs dst))
-                            writeIORef lastLoc $ Just dst -- TODO: maybe give the user the error message?
-                        Right newGameState -> do
-                            writeIORef currentGameState newGameState
-                            writeIORef lastLoc Nothing
-                            WS.sendTextData sock (A.encode $ DisplayGameState newGameState)
-            Nothing -> return ()
--}
-
-
 waitingRoom :: MVar (Chan ServerCommand, Chan (Maybe ClientCommand)) -> WS.ServerApp
 waitingRoom waitList pendingConn = do
-    putStrLn "Received a connection"
     sender <- newChan
     receiver <- newChan
     conn <- WS.acceptRequest pendingConn
@@ -68,8 +38,8 @@ waitingRoom waitList pendingConn = do
         Nothing -> putMVar waitList (sender, receiver)
         Just (sender, receiver) -> playGame conn (sender, receiver)
 
+    forkIO . forever $ readChan sender >>= WS.sendTextData conn . A.encode
     forever $ do
-        readChan sender >>= WS.sendTextData conn . A.encode
         msg <- fmap A.decode $ WS.receiveData conn
         writeChan receiver msg
 
