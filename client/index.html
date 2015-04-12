@@ -91,6 +91,7 @@ function main() {
     handlers["DisplayPlayerID"] = displayPlayerID;
     handlers["DisplayWhoseTurn"] = displayWhoseTurn;
     handlers["DisplayOpponentDisconnected"] = displayOpponentDisconnected;
+    handlers["DisplayInCheck"] = displayInCheck;
     sock.onmessage = function(event) {
         //content.textContent += event.data + "\n";
         var obj = JSON.parse(event.data);
@@ -127,6 +128,9 @@ function displayOpponentDisconnected() {
     stringOnCanvas(document.getElementById("chessBoardCanvas"), " Your opponent has disconnected \u2639. ");
 }
 
+function displayInCheck() {
+    alert("You are in check.");
+}
 </script>
 </head>
 <body onload="main();">

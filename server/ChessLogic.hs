@@ -94,4 +94,13 @@ makeMove (GameState curPlayer (ChessBoard board)) = aux where
 eitherToBool = either (const False) (const True)
 
 validMoves :: GameState -> Location -> Array Location Bool
-validMoves gs@(GameState _ (ChessBoard board)) loc = array (bounds board) . map (\(i, x) -> (i, eitherToBool $ makeMove gs (Move loc i))) $ assocs board
+validMoves gs@(GameState _ (ChessBoard board)) loc = array (bounds board) . map (\(i, x) -> (i, eitherToBool . abortIfInCheck $ makeMove gs (Move loc i))) $ assocs board
+
+abortIfInCheck :: Either String GameState -> Either String GameState
+abortIfInCheck (Right gs@(GameState player _)) | inCheck gs (otherColor player) = Left "Can't move into check"
+abortIfInCheck x = x
+
+inCheck :: GameState -> ChessPieceColor -> Bool
+inCheck (GameState _ cb@(ChessBoard board)) player = any canTakeKing (indices board) where
+    canTakeKing src = eitherToBool $ makeMove (GameState (otherColor player) cb) (Move src dst)
+    dst = fst . head . filter (\(i, Just x) -> cpType x == King && cpColor x == player) $ filter (isJust . snd) (assocs board)

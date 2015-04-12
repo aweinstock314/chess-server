@@ -22,7 +22,7 @@ instance (Ix a, A.FromJSON a, A.FromJSON b) => A.FromJSON (Array a b) where pars
 data ClientCommand = SubmitMove Location | ClientDisconnected
 data ServerCommand = DisplayGameState GameState | DisplayValidMoves (Array Location Bool)
     | DisplayPlayerID ChessPieceColor | DisplayWhoseTurn ChessPieceColor
-    | DisplayOpponentDisconnected
+    | DisplayOpponentDisconnected | DisplayInCheck
 
 fmap concat $ mapM (AT.deriveJSON AT.defaultOptions) [''ClientCommand, ''ServerCommand]
 
@@ -69,7 +69,7 @@ playGame conn (sender, receiver) = handle (\e -> (e :: WS.ConnectionException) `
                         singlecast (gsCurrentPlayer gs) $ DisplayGameState gs
                         singlecast (gsCurrentPlayer gs) $ DisplayValidMoves (validMoves gs dst)
                         writeIORef lastLocClicked $ Just dst
-                    Just src -> case makeMove gs (Move src dst) of
+                    Just src -> case abortIfInCheck $ makeMove gs (Move src dst) of
                         Left errmsg -> do
                             singlecast (gsCurrentPlayer gs) $ DisplayGameState gs
                             singlecast (gsCurrentPlayer gs) $ DisplayValidMoves (validMoves gs dst)
@@ -78,6 +78,8 @@ playGame conn (sender, receiver) = handle (\e -> (e :: WS.ConnectionException) `
                             writeIORef currentGameState newGameState
                             writeIORef lastLocClicked Nothing
                             broadcast $ DisplayGameState newGameState
+                            when (inCheck newGameState (gsCurrentPlayer newGameState)) $
+                                singlecast (gsCurrentPlayer newGameState) DisplayInCheck
             Just ClientDisconnected -> WS.sendTextData conn . A.encode $ DisplayOpponentDisconnected
             Nothing -> return ()
 
