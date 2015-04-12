@@ -2,38 +2,63 @@
 <head>
 <title>Index Page!</title>
 <script>
+var tileSize = 64;
+
 function putWebsocketDataIntoContent() {
     var content = document.getElementById("content");
     content.textContent += "<script>alert('xss');<\/script>\n";
     var sock = new WebSocket(document.URL.replace("http", "ws"));
     sock.onmessage = function(event) {
         content.textContent += event.data;
+        displayBoard(JSON.parse(event.data));
     };
 }
 
 function makeStringImage(s) {
     var canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 100;
+    canvas.width = canvas.height = tileSize;
     var ctx = canvas.getContext("2d");
     var metrics = ctx.measureText(s);
     var sx = canvas.width/metrics.width;
     var sy = canvas.height/metrics.width;
-    console.log(sx);
-    console.log(sy);
     ctx.scale(sx, sy);
     ctx.fillText(s, 0, canvas.height/sy);
     return canvas;
 }
+
 function makeChessImages() {
-    var canvasDiv = document.getElementById("canvasDiv");
-    for(var i=0x2654; i <= 0x265f; i++) {
-        canvasDiv.appendChild(makeStringImage(String.fromCharCode(i)));
+    function aux(obj, base) {
+        obj.King   = makeStringImage(String.fromCharCode(base+0));
+        obj.Queen  = makeStringImage(String.fromCharCode(base+1));
+        obj.Rook   = makeStringImage(String.fromCharCode(base+2));
+        obj.Bishop = makeStringImage(String.fromCharCode(base+3));
+        obj.Knight = makeStringImage(String.fromCharCode(base+4));
+        obj.Pawn   = makeStringImage(String.fromCharCode(base+5));
     }
+    var chessImages = {};
+    chessImages.White = {};
+    aux(chessImages.White, 0x2654);
+    chessImages.Black = {};
+    aux(chessImages.Black, 0x265A);
+    return chessImages;
+}
+
+function displayBoard(gameState) {
+    var canvas = document.getElementById("chessBoardCanvas");
+    canvas.width = canvas.height = 8*tileSize;
+    var ctx = canvas.getContext("2d");
+    var tiles = makeChessImages();
+    gameState.gsBoard.forEach(function (e) {
+        var x = e[0][0]-1;
+        var y = e[0][1]-1;
+        var piece = e[1];
+        if(piece) { ctx.drawImage(tiles[piece.cpColor][piece.cpType], x*tileSize, y*tileSize); }
+    });
 }
 </script>
 </head>
-<body onload="putWebsocketDataIntoContent(); makeChessImages();">
+<body onload="putWebsocketDataIntoContent();">
 <pre id="content"></pre>
-<div id="canvasDiv"></div>
+<canvas id="chessBoardCanvas" />
 </body>
 </html>
