@@ -1,6 +1,6 @@
 <html>
 <head>
-<title>Index Page!</title>
+<title>Chess Server - Multiplayer chess game, with a Haskell backend</title>
 <script>
 var tileSize = 64;
 
@@ -83,7 +83,7 @@ function overlayValidMoves(validMoves) {
 
 function main() {
     var content = document.getElementById("content");
-    content.textContent += "<script>alert('xss');<\/script>\n";
+    //content.textContent += "<script>alert('xss');<\/script>\n";
     var sock = new WebSocket(document.URL.replace("http", "ws"));
     var handlers = {};
     handlers["DisplayGameState"] = displayBoard;
