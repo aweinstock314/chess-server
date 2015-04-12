@@ -2,11 +2,11 @@
 module ChessLogic where
 import Control.Arrow
 import Control.Monad
-import qualified Data.Aeson as A
 import Data.Array
 import Data.List
 import Data.Maybe
 import Text.Printf.TH
+import qualified Data.Aeson as A
 import qualified Data.Aeson.TH as AT
 
 type Location = (Int, Int)
@@ -81,3 +81,8 @@ makeMove (GameState curPlayer (ChessBoard board)) = aux where
         when (maybe False ((== curPlayer) . cpColor) (board!dst)) $ Left "Can't take a piece of the same color"
         Right (GameState (otherColor curPlayer) (ChessBoard $ board // [(src, Nothing), (dst, Just (piece {cpHasMoved=True}))]))
     inBounds = inRange ((1,1), (8, 8))
+
+eitherToBool = either (const False) (const True)
+
+validMoves :: GameState -> Location -> Array Location Bool
+validMoves gs@(GameState _ (ChessBoard board)) loc = array (bounds board) . map (\(i, x) -> (i, eitherToBool $ makeMove gs (Move loc i))) $ assocs board

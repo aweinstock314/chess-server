@@ -38,7 +38,7 @@ function displayBoard(gameState) {
     canvas.width = canvas.height = 8*tileSize;
     var ctx = canvas.getContext("2d");
     var tiles = makeChessImages();
-    gameState.gsBoard.forEach(function (e) {
+    gameState.gsBoard.forEach(function(e) {
         var x = e[0][0]-1;
         var y = e[0][1]-1;
         if((x+y)%2 == 0) {
@@ -50,22 +50,48 @@ function displayBoard(gameState) {
     });
 }
 
+function askForValidMoves(sock, canvas) {
+    return function(event) {
+        var rect = canvas.getBoundingClientRect();
+        var ix = ((event.clientX - rect.x) / tileSize)|0;
+        var iy = ((event.clientY - rect.y) / tileSize)|0;
+        var msg = {};
+        msg.tag = "RequestValidMoves";
+        msg.contents = [ix+1, iy+1];
+        sock.send(JSON.stringify(msg));
+    };
+}
+
+function overlayValidMoves(validMoves) {
+    var canvas = document.getElementById("chessBoardCanvas");
+    var ctx = canvas.getContext("2d");
+    var oldGlobalAlpha = ctx.globalAlpha;
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = "#0000c0";
+    validMoves[1].forEach(function(e) {
+        console.log(JSON.stringify(e));
+        var x = e[0][0]-1;
+        var y = e[0][1]-1;
+        var valid = e[1];
+        if(valid) { ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize); }
+    });
+    ctx.globalAlpha = oldGlobalAlpha;
+}
+
 function main() {
     var content = document.getElementById("content");
     content.textContent += "<script>alert('xss');<\/script>\n";
     var sock = new WebSocket(document.URL.replace("http", "ws"));
+    var handlers = {};
+    handlers["DisplayGameState"] = displayBoard;
+    handlers["RespondValidMoves"] = overlayValidMoves;
     sock.onmessage = function(event) {
-        content.textContent += event.data;
-        displayBoard(JSON.parse(event.data));
+        content.textContent += event.data + "\n";
+        var obj = JSON.parse(event.data);
+        handlers[obj.tag](obj.contents);
     };
     var canvas = document.getElementById("chessBoardCanvas");
-    canvas.onclick = function(event) {
-        var rect = canvas.getBoundingClientRect();
-        var ix = ((event.clientX - rect.x) / tileSize)|0;
-        var iy = ((event.clientY - rect.y) / tileSize)|0;
-        console.log(ix+1);
-        console.log(iy+1);
-    }
+    canvas.onclick = askForValidMoves(sock, canvas);
 }
 </script>
 </head>
