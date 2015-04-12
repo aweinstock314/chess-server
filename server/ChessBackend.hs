@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase, NoMonomorphismRestriction, OverloadedStrings, QuasiQuotes, TemplateHaskell #-}
 import ChessLogic
 import ChessUtil
+import Control.Concurrent
 import Control.Monad
 import Data.Array
 import Data.IORef
@@ -18,7 +19,7 @@ instance (Ix a, A.ToJSON a, A.ToJSON b) => A.ToJSON (Array a b) where toJSON arr
 instance (Ix a, A.FromJSON a, A.FromJSON b) => A.FromJSON (Array a b) where parseJSON = fmap (uncurry array) . A.parseJSON
 
 data ClientCommand = SubmitMove Location | Dummy
-data ServerCommand = DisplayGameState GameState | RespondValidMoves (Array Location Bool)
+data ServerCommand = DisplayGameState GameState | DisplayValidMoves (Array Location Bool)
 
 fmap concat $ mapM (AT.deriveJSON AT.defaultOptions) [''ClientCommand, ''ServerCommand]
 
@@ -27,6 +28,7 @@ htmlPage = $(fileLiteral "../client/index.html")
 httpServer :: Wai.Application
 httpServer request respond = respond $ Wai.responseLBS HTTP.status200 [] htmlPage
 
+{-
 websocketServer :: WS.ServerApp
 websocketServer pending = do
     sock <- WS.acceptRequest pending
@@ -41,17 +43,66 @@ websocketServer pending = do
                 readIORef lastLoc >>= \case
                     Nothing -> do
                         WS.sendTextData sock (A.encode $ DisplayGameState gs)
-                        WS.sendTextData sock (A.encode $ RespondValidMoves (validMoves gs dst))
+                        WS.sendTextData sock (A.encode $ DisplayValidMoves (validMoves gs dst))
                         writeIORef lastLoc $ Just dst
                     Just src -> case makeMove gs (Move src dst) of
                         Left errmsg -> do
                             WS.sendTextData sock (A.encode $ DisplayGameState gs)
-                            WS.sendTextData sock (A.encode $ RespondValidMoves (validMoves gs dst))
+                            WS.sendTextData sock (A.encode $ DisplayValidMoves (validMoves gs dst))
                             writeIORef lastLoc $ Just dst -- TODO: maybe give the user the error message?
                         Right newGameState -> do
                             writeIORef currentGameState newGameState
                             writeIORef lastLoc Nothing
                             WS.sendTextData sock (A.encode $ DisplayGameState newGameState)
             Nothing -> return ()
+-}
 
-main = Warp.run 8000 (HWS.websocketsOr WS.defaultConnectionOptions websocketServer httpServer)
+
+waitingRoom :: MVar (Chan ServerCommand, Chan (Maybe ClientCommand)) -> WS.ServerApp
+waitingRoom waitList pendingConn = do
+    putStrLn "Received a connection"
+    sender <- newChan
+    receiver <- newChan
+    conn <- WS.acceptRequest pendingConn
+    tryTakeMVar waitList >>= \case
+        Nothing -> putMVar waitList (sender, receiver)
+        Just (sender, receiver) -> playGame conn (sender, receiver)
+
+    forever $ do
+        readChan sender >>= WS.sendTextData conn . A.encode
+        msg <- fmap A.decode $ WS.receiveData conn
+        writeChan receiver msg
+
+playGame conn (sender, receiver) = do
+    let broadcast msg = do
+        writeChan sender msg
+        WS.sendTextData conn $ A.encode msg
+    let { singlecast White msg = writeChan sender msg; singlecast Black msg = WS.sendTextData conn $ A.encode msg }
+    let { getMessage White = readChan receiver; getMessage Black = fmap A.decode $ WS.receiveData conn }
+    currentGameState <- newIORef defaultGameState
+    lastLocClicked <- newIORef Nothing
+    readIORef currentGameState >>= \gs -> broadcast $ DisplayGameState gs
+    forever $ do
+        gs <- readIORef currentGameState
+        msg <- getMessage (gsCurrentPlayer gs)
+        case msg of
+            Just (SubmitMove dst) -> do
+                readIORef lastLocClicked >>= \case
+                    Nothing -> do
+                        singlecast (gsCurrentPlayer gs) $ DisplayGameState gs
+                        singlecast (gsCurrentPlayer gs) $ DisplayValidMoves (validMoves gs dst)
+                        writeIORef lastLocClicked $ Just dst
+                    Just src -> case makeMove gs (Move src dst) of
+                        Left errmsg -> do
+                            singlecast (gsCurrentPlayer gs) $ DisplayGameState gs
+                            singlecast (gsCurrentPlayer gs) $ DisplayValidMoves (validMoves gs dst)
+                            writeIORef lastLocClicked $ Just dst -- TODO: maybe give the user the error message?
+                        Right newGameState -> do
+                            writeIORef currentGameState newGameState
+                            writeIORef lastLocClicked Nothing
+                            broadcast $ DisplayGameState newGameState
+            Nothing -> return ()
+
+main = do
+    waitList <- newEmptyMVar
+    Warp.run 8000 (HWS.websocketsOr WS.defaultConnectionOptions (waitingRoom waitList) httpServer)

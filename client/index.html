@@ -73,7 +73,6 @@ function overlayValidMoves(validMoves) {
     ctx.globalAlpha = 0.4;
     ctx.fillStyle = "#0000c0";
     validMoves[1].forEach(function(e) {
-        console.log(JSON.stringify(e));
         var x = e[0][0]-1;
         var y = e[0][1]-1;
         var valid = e[1];
@@ -88,7 +87,7 @@ function main() {
     var sock = new WebSocket(document.URL.replace("http", "ws"));
     var handlers = {};
     handlers["DisplayGameState"] = displayBoard;
-    handlers["RespondValidMoves"] = overlayValidMoves;
+    handlers["DisplayValidMoves"] = overlayValidMoves;
     sock.onmessage = function(event) {
         //content.textContent += event.data + "\n";
         var obj = JSON.parse(event.data);
@@ -96,6 +95,17 @@ function main() {
     };
     var canvas = document.getElementById("chessBoardCanvas");
     canvas.onclick = makeMove(sock, canvas);
+    displayWaitingMessage(canvas);
+}
+
+function displayWaitingMessage(canvas) {
+    var ctx = canvas.getContext("2d");
+    var s = "Waiting for other player to connect";
+    var metrics = ctx.measureText(s);
+    canvas.width = metrics.width;
+    canvas.height = 128;
+    ctx.fillStyle = 'black';
+    ctx.fillText(s, 0, 64);
 }
 </script>
 </head>
