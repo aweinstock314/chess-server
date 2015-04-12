@@ -90,6 +90,7 @@ function main() {
     handlers["DisplayValidMoves"] = overlayValidMoves;
     handlers["DisplayPlayerID"] = displayPlayerID;
     handlers["DisplayWhoseTurn"] = displayWhoseTurn;
+    handlers["DisplayOpponentDisconnected"] = displayOpponentDisconnected;
     sock.onmessage = function(event) {
         //content.textContent += event.data + "\n";
         var obj = JSON.parse(event.data);
@@ -104,7 +105,7 @@ function stringOnCanvas(canvas, str) {
     var ctx = canvas.getContext("2d");
     var metrics = ctx.measureText(str);
     canvas.width = metrics.width;
-    canvas.height = 64;
+    canvas.height = 48;
     ctx.fillStyle = 'black';
     ctx.fillText(str, 0, canvas.height/2);
     ctx.strokeStyle = 'black';
@@ -120,6 +121,12 @@ function displayWhoseTurn(str) {
     var pad = " ".repeat(10);
     stringOnCanvas(document.getElementById("whoseTurn"), pad + "It is currently " + str + "'s turn." + pad);
 }
+
+function displayOpponentDisconnected() {
+    var pad = " ".repeat(10);
+    stringOnCanvas(document.getElementById("chessBoardCanvas"), " Your opponent has disconnected \u2639. ");
+}
+
 </script>
 </head>
 <body onload="main();">

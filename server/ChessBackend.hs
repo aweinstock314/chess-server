@@ -19,8 +19,10 @@ import qualified Network.WebSockets as WS
 instance (Ix a, A.ToJSON a, A.ToJSON b) => A.ToJSON (Array a b) where toJSON arr = A.toJSON (bounds arr, assocs arr)
 instance (Ix a, A.FromJSON a, A.FromJSON b) => A.FromJSON (Array a b) where parseJSON = fmap (uncurry array) . A.parseJSON
 
-data ClientCommand = SubmitMove Location | Dummy
-data ServerCommand = DisplayGameState GameState | DisplayValidMoves (Array Location Bool) | DisplayPlayerID ChessPieceColor | DisplayWhoseTurn ChessPieceColor
+data ClientCommand = SubmitMove Location | ClientDisconnected
+data ServerCommand = DisplayGameState GameState | DisplayValidMoves (Array Location Bool)
+    | DisplayPlayerID ChessPieceColor | DisplayWhoseTurn ChessPieceColor
+    | DisplayOpponentDisconnected
 
 fmap concat $ mapM (AT.deriveJSON AT.defaultOptions) [''ClientCommand, ''ServerCommand]
 
@@ -38,13 +40,14 @@ waitingRoom waitList pendingConn = do
         Nothing -> putMVar waitList (sender, receiver)
         Just (sender, receiver) -> playGame conn (sender, receiver)
 
-    WS.sendTextData conn . A.encode $ DisplayPlayerID White
-    forkIO . forever $ readChan sender >>= WS.sendTextData conn . A.encode
-    forever $ do
-        msg <- fmap A.decode $ WS.receiveData conn
-        writeChan receiver msg
+    handle (\e -> (e :: WS.ConnectionException) `seq` writeChan receiver (Just ClientDisconnected)) $ do
+        WS.sendTextData conn . A.encode $ DisplayPlayerID White
+        forkIO . forever $ readChan sender >>= WS.sendTextData conn . A.encode
+        forever $ do
+            msg <- fmap A.decode $ WS.receiveData conn
+            writeChan receiver msg
 
-playGame conn (sender, receiver) = do
+playGame conn (sender, receiver) = handle (\e -> (e :: WS.ConnectionException) `seq` writeChan sender DisplayOpponentDisconnected) $ do
     let broadcast msg = do
         writeChan sender msg
         WS.sendTextData conn $ A.encode msg
@@ -74,6 +77,7 @@ playGame conn (sender, receiver) = do
                             writeIORef currentGameState newGameState
                             writeIORef lastLocClicked Nothing
                             broadcast $ DisplayGameState newGameState
+            Just ClientDisconnected -> WS.sendTextData conn . A.encode $ DisplayOpponentDisconnected
             Nothing -> return ()
 
 main = do
