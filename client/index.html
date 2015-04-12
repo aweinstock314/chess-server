@@ -90,7 +90,7 @@ function main() {
     handlers["DisplayGameState"] = displayBoard;
     handlers["RespondValidMoves"] = overlayValidMoves;
     sock.onmessage = function(event) {
-        content.textContent += event.data + "\n";
+        //content.textContent += event.data + "\n";
         var obj = JSON.parse(event.data);
         handlers[obj.tag](obj.contents);
     };

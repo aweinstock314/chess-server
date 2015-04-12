@@ -63,7 +63,14 @@ makeMove (GameState curPlayer (ChessBoard board)) = aux where
     aux (Move _ dst) | not (inBounds dst) = Left $ [s|Destination %? is out of bounds|] dst
     aux move@(Move src@(x1, y1) dst@(x2, y2)) = maybe (Left $ [s|No piece is at position %?|] src) Right (board!src) >>= \case
         ChessPiece _ col _ | col /= curPlayer -> Left $ [s|%? has %?'s piece, and it's %?'s turn|] src col curPlayer
-        piece@(ChessPiece Pawn col moved) -> moveIfInSet move piece (map ((x1,) . (y1+)) (pawnMoveSet col moved)) -- TODO: promotion, en passant
+        piece@(ChessPiece Pawn col moved) -> do
+            -- TODO: promotion, en passant
+            let (#) = if col == Black then (-) else (+)
+            case () of
+                _ | (dst == (x1, y1#1)) && (isNothing (board!dst)) -> uncheckedMakeMove move piece
+                _ | (dst == (x1, y1#2)) && (all isNothing $ map (board!) [(x1,y1#1), dst]) && (moved == False) -> uncheckedMakeMove move piece
+                _ | (dst `elem` [(x1-1, y1#1), (x1+1, y1#1)]) && (isJust (board!dst)) -> uncheckedMakeMove move piece
+                _ -> Left $ [s|No valid moves for Pawn at %?|] src
         piece@(ChessPiece Rook _ _) -> straightLineMovement orthogonalDeltas move piece
         piece@(ChessPiece Bishop _ _) -> straightLineMovement diagonalDeltas move piece
         piece@(ChessPiece Queen _ _) -> straightLineMovement (orthogonalDeltas ++ diagonalDeltas) move piece
