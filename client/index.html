@@ -4,16 +4,6 @@
 <script>
 var tileSize = 64;
 
-function putWebsocketDataIntoContent() {
-    var content = document.getElementById("content");
-    content.textContent += "<script>alert('xss');<\/script>\n";
-    var sock = new WebSocket(document.URL.replace("http", "ws"));
-    sock.onmessage = function(event) {
-        content.textContent += event.data;
-        displayBoard(JSON.parse(event.data));
-    };
-}
-
 function makeStringImage(s) {
     var canvas = document.createElement("canvas");
     canvas.width = canvas.height = tileSize;
@@ -51,13 +41,35 @@ function displayBoard(gameState) {
     gameState.gsBoard.forEach(function (e) {
         var x = e[0][0]-1;
         var y = e[0][1]-1;
+        if((x+y)%2 == 0) {
+            ctx.fillStyle = "#c0c0c0";
+            ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize);
+        }
         var piece = e[1];
         if(piece) { ctx.drawImage(tiles[piece.cpColor][piece.cpType], x*tileSize, y*tileSize); }
     });
 }
+
+function main() {
+    var content = document.getElementById("content");
+    content.textContent += "<script>alert('xss');<\/script>\n";
+    var sock = new WebSocket(document.URL.replace("http", "ws"));
+    sock.onmessage = function(event) {
+        content.textContent += event.data;
+        displayBoard(JSON.parse(event.data));
+    };
+    var canvas = document.getElementById("chessBoardCanvas");
+    canvas.onclick = function(event) {
+        var rect = canvas.getBoundingClientRect();
+        var ix = ((event.clientX - rect.x) / tileSize)|0;
+        var iy = ((event.clientY - rect.y) / tileSize)|0;
+        console.log(ix+1);
+        console.log(iy+1);
+    }
+}
 </script>
 </head>
-<body onload="putWebsocketDataIntoContent();">
+<body onload="main();">
 <pre id="content"></pre>
 <canvas id="chessBoardCanvas" />
 </body>
