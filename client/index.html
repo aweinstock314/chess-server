@@ -10,9 +10,30 @@ function putWebsocketDataIntoContent() {
         content.textContent += event.data;
     };
 }
+
+function makeStringImage(s) {
+    var canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 100;
+    var ctx = canvas.getContext("2d");
+    var metrics = ctx.measureText(s);
+    var sx = canvas.width/metrics.width;
+    var sy = canvas.height/metrics.width;
+    console.log(sx);
+    console.log(sy);
+    ctx.scale(sx, sy);
+    ctx.fillText(s, 0, canvas.height/sy);
+    return canvas;
+}
+function makeChessImages() {
+    var canvasDiv = document.getElementById("canvasDiv");
+    for(var i=0x2654; i <= 0x265f; i++) {
+        canvasDiv.appendChild(makeStringImage(String.fromCharCode(i)));
+    }
+}
 </script>
 </head>
-<body onload="putWebsocketDataIntoContent();">
+<body onload="putWebsocketDataIntoContent(); makeChessImages();">
 <pre id="content"></pre>
+<div id="canvasDiv"></div>
 </body>
 </html>
