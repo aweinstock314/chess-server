@@ -1,0 +1,18 @@
+<html>
+<head>
+<title>Index Page!</title>
+<script>
+function putWebsocketDataIntoContent() {
+    var content = document.getElementById("content");
+    content.textContent += "<script>alert('xss');<\/script>\n";
+    var sock = new WebSocket(document.URL.replace("http", "ws"));
+    sock.onmessage = function(event) {
+        content.textContent += event.data;
+    };
+}
+</script>
+</head>
+<body onload="putWebsocketDataIntoContent();">
+<pre id="content"></pre>
+</body>
+</html>

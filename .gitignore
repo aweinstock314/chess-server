@@ -1,2 +1,4 @@
 cabal.sandbox.config
 *.swp
+*.o
+*.hi
