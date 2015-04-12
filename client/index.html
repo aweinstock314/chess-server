@@ -57,23 +57,12 @@ function calcTilePosition(canvas, event) {
     return [ix+1, iy+1];
 }
 
-function askForValidMoves(sock, canvas) {
-    return function(event) {
-        var msg = {};
-        msg.tag = "RequestValidMoves";
-        msg.contents = calcTilePosition(canvas, event);
-        sock.send(JSON.stringify(msg));
-        canvas.onclick = makeMove(sock, canvas);
-    };
-}
-
 function makeMove(sock, canvas) {
     return function(event) {
         msg = {};
         msg.tag = "SubmitMove";
         msg.contents = calcTilePosition(canvas, event);
         sock.send(JSON.stringify(msg));
-        canvas.onclick = askForValidMoves(sock, canvas);
     };
 }
 
@@ -106,7 +95,7 @@ function main() {
         handlers[obj.tag](obj.contents);
     };
     var canvas = document.getElementById("chessBoardCanvas");
-    canvas.onclick = askForValidMoves(sock, canvas);
+    canvas.onclick = makeMove(sock, canvas);
 }
 </script>
 </head>
