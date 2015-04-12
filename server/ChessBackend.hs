@@ -3,6 +3,7 @@ import ChessLogic
 import ChessUtil
 import Control.Monad
 import Data.Array
+import Data.IORef
 import Text.Printf.TH
 import qualified Data.Aeson as A
 import qualified Data.Aeson.TH as AT
@@ -29,12 +30,15 @@ httpServer request respond = respond $ Wai.responseLBS HTTP.status200 [] htmlPag
 websocketServer :: WS.ServerApp
 websocketServer pending = do
     sock <- WS.acceptRequest pending
-    WS.sendTextData sock (A.encode $ DisplayGameState defaultGameState)
+    currentGameState <- newIORef defaultGameState
+    readIORef currentGameState >>= \gs -> WS.sendTextData sock (A.encode $ DisplayGameState gs)
     forever $ do
         msg <- fmap A.decode $ WS.receiveData sock
         case msg of
             Just (RequestValidMoves loc) -> do
-                WS.sendTextData sock (A.encode $ RespondValidMoves (validMoves defaultGameState loc))
+                gs <- readIORef currentGameState
+                WS.sendTextData sock (A.encode $ DisplayGameState gs)
+                WS.sendTextData sock (A.encode $ RespondValidMoves (validMoves gs loc))
             Nothing -> return ()
 
 main = Warp.run 8000 (HWS.websocketsOr WS.defaultConnectionOptions websocketServer httpServer)

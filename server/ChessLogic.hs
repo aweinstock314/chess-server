@@ -70,10 +70,10 @@ makeMove (GameState curPlayer (ChessBoard board)) = aux where
         piece@(ChessPiece Knight _ _) -> moveIfInSet move piece (knightMoveSet src)
         piece@(ChessPiece King _ _) -> moveIfInSet move piece (map ((x1+) *** (y1+)) (orthogonalDeltas ++ diagonalDeltas)) -- TODO: castling
     pawnMoveSet col moved = map (case col of {Black -> negate; White -> id}) (if moved then [1] else [1,2])
-    straightLineMovement deltas move@(Move src dst) piece = moveIfInSet move piece $
+    knightMoveSet (x, y) = let r = [-2, -1, 1, 2] in [(x+dx, y+dy) | dx <- r, dy <- r, abs dy /= abs dx]
+    takeWhileUnoccupied = reverse . fst . foldl (\(a, done) (i,e) -> (if done then a else (i,e):a, done || isJust e)) ([], False)
+    straightLineMovement deltas move@(Move src _) piece = moveIfInSet move piece $
         concatMap (\delta -> map fst . takeWhileUnoccupied $ getByDelta board delta src) deltas
-    knightMoveSet (x, y) = let r = [-2, -1, 1, 2] in [(x+dx, x+dy) | dx <- r, dy <- r, abs dy /= abs dx]
-    takeWhileUnoccupied = fst . foldr (\(i,e) (a, done) -> (if done then a else (i,e):a, done || isNothing e)) ([], False)
     orthogonalDeltas = [(-1, 0), (1, 0), (0, -1), (0, 1)]
     diagonalDeltas = [(-1, -1), (-1, 1), (1, 1), (1, -1)]
     moveIfInSet move piece set = if mvDest move `elem` set then uncheckedMakeMove move piece else Left $ [s|Invalid move for %?|] (cpType piece)
