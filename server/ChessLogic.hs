@@ -96,6 +96,9 @@ eitherToBool = either (const False) (const True)
 validMoves :: GameState -> Location -> Array Location Bool
 validMoves gs@(GameState _ (ChessBoard board)) loc = array (bounds board) . map (\(i, x) -> (i, eitherToBool . abortIfInCheck $ makeMove gs (Move loc i))) $ assocs board
 
+anyValidMovesExist :: GameState -> Bool
+anyValidMovesExist gs@(GameState player (ChessBoard board)) = any (\i -> any id (elems $ validMoves gs i)) (indices board)
+
 abortIfInCheck :: Either String GameState -> Either String GameState
 abortIfInCheck (Right gs@(GameState player _)) | inCheck gs (otherColor player) = Left "Can't move into check"
 abortIfInCheck x = x

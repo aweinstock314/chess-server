@@ -92,6 +92,8 @@ function main() {
     handlers["DisplayWhoseTurn"] = displayWhoseTurn;
     handlers["DisplayOpponentDisconnected"] = displayOpponentDisconnected;
     handlers["DisplayInCheck"] = displayInCheck;
+    handlers["CheckmateHappened"] = handleCheckmate;
+    handlers["StalemateHappened"] = handleStalemate;
     sock.onmessage = function(event) {
         //content.textContent += event.data + "\n";
         var obj = JSON.parse(event.data);
@@ -130,6 +132,18 @@ function displayOpponentDisconnected() {
 
 function displayInCheck() {
     alert("You are in check.");
+}
+
+function handleCheckmate(winner) {
+    var pad = " ".repeat(10);
+    stringOnCanvas(document.getElementById("whoseTurn"), pad + winner + " has won." + pad);
+    alert("Checkmate.");
+}
+
+function handleStalemate() {
+    var pad = " ".repeat(10);
+    stringOnCanvas(document.getElementById("whoseTurn"), pad + "There has been a stalemate." + pad);
+    alert("Stalemate.");
 }
 </script>
 </head>

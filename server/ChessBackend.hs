@@ -23,6 +23,7 @@ data ClientCommand = SubmitMove Location | ClientDisconnected
 data ServerCommand = DisplayGameState GameState | DisplayValidMoves (Array Location Bool)
     | DisplayPlayerID ChessPieceColor | DisplayWhoseTurn ChessPieceColor
     | DisplayOpponentDisconnected | DisplayInCheck
+    | CheckmateHappened ChessPieceColor | StalemateHappened
 
 fmap concat $ mapM (AT.deriveJSON AT.defaultOptions) [''ClientCommand, ''ServerCommand]
 
@@ -58,7 +59,7 @@ playGame conn (sender, receiver) = handle (\e -> (e :: WS.ConnectionException) `
     lastLocClicked <- newIORef Nothing
     WS.sendTextData conn . A.encode $ DisplayPlayerID Black
     readIORef currentGameState >>= \gs -> broadcast $ DisplayGameState gs
-    forever $ do
+    let loop = do
         gs <- readIORef currentGameState
         broadcast $ DisplayWhoseTurn (gsCurrentPlayer gs)
         msg <- getMessage (gsCurrentPlayer gs)
@@ -69,19 +70,28 @@ playGame conn (sender, receiver) = handle (\e -> (e :: WS.ConnectionException) `
                         singlecast (gsCurrentPlayer gs) $ DisplayGameState gs
                         singlecast (gsCurrentPlayer gs) $ DisplayValidMoves (validMoves gs dst)
                         writeIORef lastLocClicked $ Just dst
+                        loop
                     Just src -> case abortIfInCheck $ makeMove gs (Move src dst) of
                         Left errmsg -> do
                             singlecast (gsCurrentPlayer gs) $ DisplayGameState gs
                             singlecast (gsCurrentPlayer gs) $ DisplayValidMoves (validMoves gs dst)
                             writeIORef lastLocClicked $ Just dst -- TODO: maybe give the user the error message?
+                            loop
                         Right newGameState -> do
                             writeIORef currentGameState newGameState
                             writeIORef lastLocClicked Nothing
                             broadcast $ DisplayGameState newGameState
-                            when (inCheck newGameState (gsCurrentPlayer newGameState)) $
-                                singlecast (gsCurrentPlayer newGameState) DisplayInCheck
+                            unless (not $ anyValidMovesExist newGameState) $ do
+                                when (inCheck newGameState (gsCurrentPlayer newGameState)) $
+                                    singlecast (gsCurrentPlayer newGameState) DisplayInCheck
+                                loop
+                            when (not $ anyValidMovesExist newGameState) $ do
+                                if inCheck newGameState (gsCurrentPlayer newGameState)
+                                    then broadcast $ CheckmateHappened (gsCurrentPlayer gs)
+                                    else broadcast StalemateHappened
             Just ClientDisconnected -> WS.sendTextData conn . A.encode $ DisplayOpponentDisconnected
             Nothing -> return ()
+    loop
 
 main = do
     waitList <- newEmptyMVar
