@@ -64,12 +64,14 @@ makeMove (GameState curPlayer (ChessBoard board)) = aux where
     aux move@(Move src@(x1, y1) dst@(x2, y2)) = maybe (Left $ [s|No piece is at position %?|] src) Right (board!src) >>= \case
         ChessPiece _ col _ | col /= curPlayer -> Left $ [s|%? has %?'s piece, and it's %?'s turn|] src col curPlayer
         piece@(ChessPiece Pawn col moved) -> do
-            -- TODO: promotion, en passant
+            -- TODO: arbitrary promotion, en passant
             let (#) = if col == Black then (-) else (+)
+            let shouldPromote = y2 == (if col == Black then 1 else 8)
+            let piece' = if shouldPromote then piece { cpType = Queen } else piece
             case () of
-                _ | (dst == (x1, y1#1)) && (isNothing (board!dst)) -> uncheckedMakeMove move piece
-                _ | (dst == (x1, y1#2)) && (all isNothing $ map (board!) [(x1,y1#1), dst]) && (moved == False) -> uncheckedMakeMove move piece
-                _ | (dst `elem` [(x1-1, y1#1), (x1+1, y1#1)]) && (isJust (board!dst)) -> uncheckedMakeMove move piece
+                _ | (dst == (x1, y1#1)) && (isNothing (board!dst)) -> uncheckedMakeMove move piece'
+                _ | (dst == (x1, y1#2)) && (all isNothing $ map (board!) [(x1,y1#1), dst]) && (moved == False) -> uncheckedMakeMove move piece'
+                _ | (dst `elem` [(x1-1, y1#1), (x1+1, y1#1)]) && (isJust (board!dst)) -> uncheckedMakeMove move piece'
                 _ -> Left $ [s|No valid moves for Pawn at %?|] src
         piece@(ChessPiece Rook _ _) -> straightLineMovement orthogonalDeltas move piece
         piece@(ChessPiece Bishop _ _) -> straightLineMovement diagonalDeltas move piece
