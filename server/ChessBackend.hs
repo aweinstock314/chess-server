@@ -36,6 +36,7 @@ waitingRoom waitList pendingConn = do
     sender <- newChan
     receiver <- newChan
     conn <- WS.acceptRequest pendingConn
+    WS.forkPingThread conn 20
     tryTakeMVar waitList >>= \case
         Nothing -> putMVar waitList (sender, receiver)
         Just (sender, receiver) -> playGame conn (sender, receiver)
