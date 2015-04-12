@@ -1,4 +1,4 @@
-{-# LANGUAGE NoMonomorphismRestriction, OverloadedStrings, QuasiQuotes, TemplateHaskell #-}
+{-# LANGUAGE LambdaCase, NoMonomorphismRestriction, OverloadedStrings, QuasiQuotes, TemplateHaskell #-}
 import ChessLogic
 import ChessUtil
 import Control.Monad
@@ -17,7 +17,7 @@ import qualified Network.WebSockets as WS
 instance (Ix a, A.ToJSON a, A.ToJSON b) => A.ToJSON (Array a b) where toJSON arr = A.toJSON (bounds arr, assocs arr)
 instance (Ix a, A.FromJSON a, A.FromJSON b) => A.FromJSON (Array a b) where parseJSON = fmap (uncurry array) . A.parseJSON
 
-data ClientCommand = RequestValidMoves Location | SomethingElse
+data ClientCommand = RequestValidMoves Location | SubmitMove Location
 data ServerCommand = DisplayGameState GameState | RespondValidMoves (Array Location Bool)
 
 fmap concat $ mapM (AT.deriveJSON AT.defaultOptions) [''ClientCommand, ''ServerCommand]
@@ -31,14 +31,27 @@ websocketServer :: WS.ServerApp
 websocketServer pending = do
     sock <- WS.acceptRequest pending
     currentGameState <- newIORef defaultGameState
+    lastLoc <- newIORef Nothing
     readIORef currentGameState >>= \gs -> WS.sendTextData sock (A.encode $ DisplayGameState gs)
     forever $ do
         msg <- fmap A.decode $ WS.receiveData sock
+        let handleReqValid src = do
+            gs <- readIORef currentGameState
+            WS.sendTextData sock (A.encode $ DisplayGameState gs)
+            WS.sendTextData sock (A.encode $ RespondValidMoves (validMoves gs src))
+            writeIORef lastLoc $ Just src
         case msg of
-            Just (RequestValidMoves loc) -> do
+            Just (RequestValidMoves src) -> handleReqValid src
+            Just (SubmitMove dst) -> do
                 gs <- readIORef currentGameState
-                WS.sendTextData sock (A.encode $ DisplayGameState gs)
-                WS.sendTextData sock (A.encode $ RespondValidMoves (validMoves gs loc))
+                readIORef lastLoc >>= \case
+                    Nothing -> handleReqValid dst
+                    Just src -> case makeMove gs (Move src dst) of
+                        Left errmsg -> handleReqValid dst -- TODO: maybe give the user the error message?
+                        Right newGameState -> do
+                            writeIORef currentGameState newGameState
+                            writeIORef lastLoc Nothing
+                            WS.sendTextData sock (A.encode $ DisplayGameState newGameState)
             Nothing -> return ()
 
 main = Warp.run 8000 (HWS.websocketsOr WS.defaultConnectionOptions websocketServer httpServer)

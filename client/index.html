@@ -50,15 +50,30 @@ function displayBoard(gameState) {
     });
 }
 
+function calcTilePosition(canvas, event) {
+    var rect = canvas.getBoundingClientRect();
+    var ix = ((event.clientX - rect.x) / tileSize)|0;
+    var iy = ((event.clientY - rect.y) / tileSize)|0;
+    return [ix+1, iy+1];
+}
+
 function askForValidMoves(sock, canvas) {
     return function(event) {
-        var rect = canvas.getBoundingClientRect();
-        var ix = ((event.clientX - rect.x) / tileSize)|0;
-        var iy = ((event.clientY - rect.y) / tileSize)|0;
         var msg = {};
         msg.tag = "RequestValidMoves";
-        msg.contents = [ix+1, iy+1];
+        msg.contents = calcTilePosition(canvas, event);
         sock.send(JSON.stringify(msg));
+        canvas.onclick = makeMove(sock, canvas);
+    };
+}
+
+function makeMove(sock, canvas) {
+    return function(event) {
+        msg = {};
+        msg.tag = "SubmitMove";
+        msg.contents = calcTilePosition(canvas, event);
+        sock.send(JSON.stringify(msg));
+        canvas.onclick = askForValidMoves(sock, canvas);
     };
 }
 
