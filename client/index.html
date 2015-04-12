@@ -88,6 +88,8 @@ function main() {
     var handlers = {};
     handlers["DisplayGameState"] = displayBoard;
     handlers["DisplayValidMoves"] = overlayValidMoves;
+    handlers["DisplayPlayerID"] = displayPlayerID;
+    handlers["DisplayWhoseTurn"] = displayWhoseTurn;
     sock.onmessage = function(event) {
         //content.textContent += event.data + "\n";
         var obj = JSON.parse(event.data);
@@ -95,22 +97,34 @@ function main() {
     };
     var canvas = document.getElementById("chessBoardCanvas");
     canvas.onclick = makeMove(sock, canvas);
-    displayWaitingMessage(canvas);
+    stringOnCanvas(canvas, "Waiting for another player to connect...");
 }
 
-function displayWaitingMessage(canvas) {
+function stringOnCanvas(canvas, str) {
     var ctx = canvas.getContext("2d");
-    var s = "Waiting for other player to connect";
-    var metrics = ctx.measureText(s);
+    var metrics = ctx.measureText(str);
     canvas.width = metrics.width;
-    canvas.height = 128;
+    canvas.height = 64;
     ctx.fillStyle = 'black';
-    ctx.fillText(s, 0, 64);
+    ctx.fillText(str, 0, canvas.height/2);
+    ctx.strokeStyle = 'black';
+    ctx.strokeRect(0, 0, metrics.width, canvas.height);
+}
+
+function displayPlayerID(str) {
+    var pad = " ".repeat(10);
+    stringOnCanvas(document.getElementById("playerID"), pad + "You are playing as " + str + "."+ pad);
+}
+
+function displayWhoseTurn(str) {
+    var pad = " ".repeat(10);
+    stringOnCanvas(document.getElementById("whoseTurn"), pad + "It is currently " + str + "'s turn." + pad);
 }
 </script>
 </head>
 <body onload="main();">
 <pre id="content"></pre>
-<canvas id="chessBoardCanvas" />
+<canvas id="playerID" height="64"></canvas><canvas id="whoseTurn" height="64"></canvas><br />
+<canvas id="chessBoardCanvas"></canvas>
 </body>
 </html>

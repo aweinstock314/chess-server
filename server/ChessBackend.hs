@@ -20,7 +20,7 @@ instance (Ix a, A.ToJSON a, A.ToJSON b) => A.ToJSON (Array a b) where toJSON arr
 instance (Ix a, A.FromJSON a, A.FromJSON b) => A.FromJSON (Array a b) where parseJSON = fmap (uncurry array) . A.parseJSON
 
 data ClientCommand = SubmitMove Location | Dummy
-data ServerCommand = DisplayGameState GameState | DisplayValidMoves (Array Location Bool)
+data ServerCommand = DisplayGameState GameState | DisplayValidMoves (Array Location Bool) | DisplayPlayerID ChessPieceColor | DisplayWhoseTurn ChessPieceColor
 
 fmap concat $ mapM (AT.deriveJSON AT.defaultOptions) [''ClientCommand, ''ServerCommand]
 
@@ -38,6 +38,7 @@ waitingRoom waitList pendingConn = do
         Nothing -> putMVar waitList (sender, receiver)
         Just (sender, receiver) -> playGame conn (sender, receiver)
 
+    WS.sendTextData conn . A.encode $ DisplayPlayerID White
     forkIO . forever $ readChan sender >>= WS.sendTextData conn . A.encode
     forever $ do
         msg <- fmap A.decode $ WS.receiveData conn
@@ -51,9 +52,11 @@ playGame conn (sender, receiver) = do
     let { getMessage White = readChan receiver; getMessage Black = fmap A.decode $ WS.receiveData conn }
     currentGameState <- newIORef defaultGameState
     lastLocClicked <- newIORef Nothing
+    WS.sendTextData conn . A.encode $ DisplayPlayerID Black
     readIORef currentGameState >>= \gs -> broadcast $ DisplayGameState gs
     forever $ do
         gs <- readIORef currentGameState
+        broadcast $ DisplayWhoseTurn (gsCurrentPlayer gs)
         msg <- getMessage (gsCurrentPlayer gs)
         case msg of
             Just (SubmitMove dst) -> do
