@@ -1,18 +1,24 @@
-{-# LANGUAGE LambdaCase, QuasiQuotes, TupleSections #-}
+{-# LANGUAGE LambdaCase, QuasiQuotes, TemplateHaskell, TupleSections #-}
+module ChessLogic where
 import Control.Arrow
 import Control.Monad
+import qualified Data.Aeson as A
 import Data.Array
 import Data.List
 import Data.Maybe
 import Text.Printf.TH
+import qualified Data.Aeson.TH as AT
 
 type Location = (Int, Int)
 data Move = Move { mvSource :: Location, mvDest :: Location } deriving Show
-type ChessBoard = Array Location (Maybe ChessPiece)
+newtype ChessBoard = ChessBoard (Array Location (Maybe ChessPiece))
 data GameState = GameState {
     gsCurrentPlayer :: ChessPieceColor,
     gsBoard :: ChessBoard
     }
+
+instance A.ToJSON ChessBoard where toJSON (ChessBoard board) = A.toJSON $ assocs board
+instance A.FromJSON ChessBoard where parseJSON aList = fmap (ChessBoard . array ((1,1), (8, 8))) $ A.parseJSON aList
 
 data ChessPieceType = Pawn | Rook | Knight | Bishop | Queen | King deriving (Eq, Show)
 data ChessPieceColor = Black | White deriving (Eq, Show)
@@ -25,7 +31,14 @@ data ChessPiece = ChessPiece {
 
 instance Show ChessPiece where show (ChessPiece ty col _) = [s|ChessPiece %6? %?|] ty col
 
-defaultBoard = listArray ((1, 1), (8, 8)) . concat $ transpose [
+fmap concat $ mapM (AT.deriveJSON AT.defaultOptions) [
+    ''ChessPieceType,
+    ''ChessPieceColor,
+    ''ChessPiece,
+    ''GameState,
+    ''Move]
+
+defaultBoard = ChessBoard . listArray ((1, 1), (8, 8)) . concat $ transpose [
     [mk Rook White, mk Knight White, mk Bishop White, mk Queen White, mk King White, mk Bishop White, mk Knight White, mk Rook White],
     [mk Pawn White, mk   Pawn White, mk   Pawn White, mk  Pawn White, mk Pawn White, mk   Pawn White, mk   Pawn White, mk Pawn White],
     [Nothing,               Nothing,         Nothing,        Nothing,       Nothing,         Nothing,         Nothing,       Nothing],
@@ -36,6 +49,8 @@ defaultBoard = listArray ((1, 1), (8, 8)) . concat $ transpose [
     [mk Rook Black, mk Knight Black, mk Bishop Black, mk Queen Black, mk King Black, mk Bishop Black, mk Knight Black, mk Rook Black]
     ] where mk piece color = Just $ ChessPiece piece color False
 
+defaultGameState = GameState White defaultBoard
+
 otherColor Black = White
 otherColor White = Black
 
@@ -43,7 +58,7 @@ arr !? i = if inRange (bounds arr) i then Just (arr!i) else Nothing
 getByDelta arr (dx, dy) = unfoldr (\i@(ix, iy) -> fmap ((,(ix+dx, iy+dy)) . (i,)) (arr !? i)) . ((+dx) *** (+dy))
 
 makeMove :: GameState -> Move -> Either String GameState
-makeMove (GameState curPlayer board) = aux where
+makeMove (GameState curPlayer (ChessBoard board)) = aux where
     aux (Move src _) | not (inBounds src) = Left $ [s|Source %? is out of bounds|] src
     aux (Move _ dst) | not (inBounds dst) = Left $ [s|Destination %? is out of bounds|] dst
     aux move@(Move src@(x1, y1) dst@(x2, y2)) = maybe (Left $ [s|No piece is at position %?|] src) Right (board!src) >>= \case
@@ -64,5 +79,5 @@ makeMove (GameState curPlayer board) = aux where
     moveIfInSet move piece set = if mvDest move `elem` set then uncheckedMakeMove move piece else Left $ [s|Invalid move for %?|] (cpType piece)
     uncheckedMakeMove (Move src dst) piece = do
         when (maybe False ((== curPlayer) . cpColor) (board!dst)) $ Left "Can't take a piece of the same color"
-        Right (GameState (otherColor curPlayer) (board // [(src, Nothing), (dst, Just (piece {cpHasMoved=True}))]))
+        Right (GameState (otherColor curPlayer) (ChessBoard $ board // [(src, Nothing), (dst, Just (piece {cpHasMoved=True}))]))
     inBounds = inRange ((1,1), (8, 8))
