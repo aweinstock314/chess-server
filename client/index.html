@@ -2,7 +2,12 @@
 <head>
 <title>Chess Server - Multiplayer chess game, with a Haskell backend</title>
 <script>
-var tileSize = 64;
+
+var tileSize = function() {
+    var s = document.URL;
+    var x = (s.substring(s.lastIndexOf("/")+1))|0;
+    return (x == 0) ? 64 : x;
+}();
 
 function makeStringImage(s) {
     var canvas = document.createElement("canvas");
