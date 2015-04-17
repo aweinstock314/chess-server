@@ -63,11 +63,15 @@ function calcTilePosition(canvas, event) {
 }
 
 function makeMove(sock, canvas) {
+    var lastClick = null;
     return function(event) {
         msg = {};
         msg.tag = "SubmitMove";
         msg.contents = calcTilePosition(canvas, event);
-        sock.send(JSON.stringify(msg));
+        if(lastClick !== msg.contents) {
+            sock.send(JSON.stringify(msg));
+            lastClick = msg.contents;
+        }
     };
 }
 
@@ -105,7 +109,9 @@ function main() {
         handlers[obj.tag](obj.contents);
     };
     var canvas = document.getElementById("chessBoardCanvas");
-    canvas.onclick = makeMove(sock, canvas);
+    var mouseAction = makeMove(sock, canvas);
+    canvas.addEventListener('mousedown', mouseAction, false);
+    canvas.addEventListener('mouseup', mouseAction, false);
     stringOnCanvas(canvas, "Waiting for another player to connect...");
 }
 
