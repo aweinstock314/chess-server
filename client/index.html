@@ -57,8 +57,8 @@ function displayBoard(gameState) {
 
 function calcTilePosition(canvas, event) {
     var rect = canvas.getBoundingClientRect();
-    var ix = ((event.clientX - rect.x) / tileSize)|0;
-    var iy = ((event.clientY - rect.y) / tileSize)|0;
+    var ix = ((event.clientX - rect.left) / tileSize)|0;
+    var iy = ((event.clientY - rect.top) / tileSize)|0;
     return [ix+1, iy+1];
 }
 

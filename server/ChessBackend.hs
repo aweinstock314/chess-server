@@ -46,15 +46,17 @@ waitingRoom waitList pendingConn = do
         WS.sendTextData conn . A.encode $ DisplayPlayerID White
         forkIO . forever $ readChan sender >>= WS.sendTextData conn . A.encode
         forever $ do
-            msg <- fmap A.decode $ WS.receiveData conn
+            msg <- fmap A.decode $ WS.receiveData conn >>= showReceived White
             writeChan receiver msg
+
+showReceived player msg = putStrLn ([s|Received from %?: %?|] player msg) >> return msg
 
 playGame conn (sender, receiver) = handle (\e -> (e :: WS.ConnectionException) `seq` writeChan sender DisplayOpponentDisconnected) $ do
     let broadcast msg = do
         writeChan sender msg
         WS.sendTextData conn $ A.encode msg
     let { singlecast White msg = writeChan sender msg; singlecast Black msg = WS.sendTextData conn $ A.encode msg }
-    let { getMessage White = readChan receiver; getMessage Black = fmap A.decode $ WS.receiveData conn }
+    let { getMessage White = readChan receiver; getMessage Black = fmap A.decode $ WS.receiveData conn >>= showReceived Black }
     currentGameState <- newIORef defaultGameState
     lastLocClicked <- newIORef Nothing
     WS.sendTextData conn . A.encode $ DisplayPlayerID Black
