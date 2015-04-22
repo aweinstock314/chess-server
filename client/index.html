@@ -62,19 +62,6 @@ function calcTilePosition(canvas, event) {
     return [ix+1, iy+1];
 }
 
-function makeMove(sock, canvas) {
-    var lastClick = null;
-    return function(event) {
-        msg = {};
-        msg.tag = "SubmitMove";
-        msg.contents = calcTilePosition(canvas, event);
-        if(lastClick !== msg.contents) {
-            sock.send(JSON.stringify(msg));
-            lastClick = msg.contents;
-        }
-    };
-}
-
 function overlayValidMoves(validMoves) {
     var canvas = document.getElementById("chessBoardCanvas");
     var ctx = canvas.getContext("2d");
@@ -90,6 +77,36 @@ function overlayValidMoves(validMoves) {
     ctx.globalAlpha = oldGlobalAlpha;
 }
 
+function makeInputCallbacks(sock, canvas) {
+    var enabled = false;
+    var lastClick = null;
+    function makeMove(event) {
+        if(enabled) {
+            msg = {};
+            msg.tag = "SubmitMove";
+            msg.contents = calcTilePosition(canvas, event);
+            if(lastClick !== msg.contents) {
+                sock.send(JSON.stringify(msg));
+                lastClick = msg.contents;
+            }
+        }
+    }
+    canvas.addEventListener('mousedown', makeMove, false);
+    canvas.addEventListener('mouseup', makeMove, false);
+
+    function makeCallback(x) {
+        return function(_) {
+            enabled = x;
+            lastClick = null;
+        };
+    }
+
+    var callbacks = {};
+    callbacks.enable = makeCallback(true);
+    callbacks.disable = makeCallback(false);
+    return callbacks;
+}
+
 function main() {
     var content = document.getElementById("content");
     //content.textContent += "<script>alert('xss');<\/script>\n";
@@ -103,15 +120,15 @@ function main() {
     handlers["DisplayInCheck"] = displayInCheck;
     handlers["CheckmateHappened"] = handleCheckmate;
     handlers["StalemateHappened"] = handleStalemate;
+    var canvas = document.getElementById("chessBoardCanvas");
+    inputCallbacks = makeInputCallbacks(sock, canvas);
+    handlers["EnableInput"] = inputCallbacks.enable;
+    handlers["DisableInput"] = inputCallbacks.disable;
     sock.onmessage = function(event) {
-        //content.textContent += event.data + "\n";
+        content.textContent += event.data + "\n";
         var obj = JSON.parse(event.data);
         handlers[obj.tag](obj.contents);
     };
-    var canvas = document.getElementById("chessBoardCanvas");
-    var mouseAction = makeMove(sock, canvas);
-    canvas.addEventListener('mousedown', mouseAction, false);
-    canvas.addEventListener('mouseup', mouseAction, false);
     stringOnCanvas(canvas, "Waiting for another player to connect...");
 }
 
@@ -159,8 +176,9 @@ function handleStalemate() {
 </script>
 </head>
 <body onload="main();">
-<pre id="content"></pre>
 <canvas id="playerID" height="64"></canvas><canvas id="whoseTurn" height="64"></canvas><br />
-<canvas id="chessBoardCanvas"></canvas>
+<canvas id="chessBoardCanvas"></canvas><br />
+<!-- This pre tag gets populated with the JSON received from the server (for debugging purposes), but is invisible unless poked by the console. -->
+<pre id="content" style="display: none"></pre>
 </body>
 </html>

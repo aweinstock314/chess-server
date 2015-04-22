@@ -24,6 +24,7 @@ data ServerCommand = DisplayGameState GameState | DisplayValidMoves (Array Locat
     | DisplayPlayerID ChessPieceColor | DisplayWhoseTurn ChessPieceColor
     | DisplayOpponentDisconnected | DisplayInCheck
     | CheckmateHappened ChessPieceColor | StalemateHappened
+    | EnableInput | DisableInput
 
 fmap concat $ mapM (AT.deriveJSON AT.defaultOptions) [''ClientCommand, ''ServerCommand]
 
@@ -39,15 +40,14 @@ waitingRoom waitList pendingConn = do
     conn <- WS.acceptRequest pendingConn
     WS.forkPingThread conn 20
     tryTakeMVar waitList >>= \case
-        Nothing -> putMVar waitList (sender, receiver)
         Just (sender, receiver) -> playGame conn (sender, receiver)
-
-    handle (\e -> (e :: WS.ConnectionException) `seq` writeChan receiver (Just ClientDisconnected)) $ do
-        WS.sendTextData conn . A.encode $ DisplayPlayerID White
-        forkIO . forever $ readChan sender >>= WS.sendTextData conn . A.encode
-        forever $ do
-            msg <- fmap A.decode $ WS.receiveData conn >>= showReceived White
-            writeChan receiver msg
+        Nothing -> putMVar waitList (sender, receiver) >> do
+            handle (\e -> (e :: WS.ConnectionException) `seq` writeChan receiver (Just ClientDisconnected)) $ do
+                WS.sendTextData conn . A.encode $ DisplayPlayerID White
+                forkIO . forever $ readChan sender >>= WS.sendTextData conn . A.encode
+                forever $ do
+                    msg <- fmap A.decode $ WS.receiveData conn >>= showReceived White
+                    writeChan receiver msg
 
 showReceived player msg = putStrLn ([s|Received from %?: %?|] player msg) >> return msg
 
@@ -64,7 +64,9 @@ playGame conn (sender, receiver) = handle (\e -> (e :: WS.ConnectionException) `
     let loop = do
         gs <- readIORef currentGameState
         broadcast $ DisplayWhoseTurn (gsCurrentPlayer gs)
+        singlecast (gsCurrentPlayer gs) EnableInput
         msg <- getMessage (gsCurrentPlayer gs)
+        singlecast (gsCurrentPlayer gs) DisableInput
         case msg of
             Just (SubmitMove dst) -> do
                 readIORef lastLocClicked >>= \case
