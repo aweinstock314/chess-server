@@ -62,24 +62,10 @@ function calcTilePosition(canvas, event) {
     return [ix+1, iy+1];
 }
 
-function overlayValidMoves(validMoves) {
-    var canvas = document.getElementById("chessBoardCanvas");
-    var ctx = canvas.getContext("2d");
-    var oldGlobalAlpha = ctx.globalAlpha;
-    ctx.globalAlpha = 0.4;
-    ctx.fillStyle = "#0000c0";
-    validMoves[1].forEach(function(e) {
-        var x = e[0][0]-1;
-        var y = e[0][1]-1;
-        var valid = e[1];
-        if(valid) { ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize); }
-    });
-    ctx.globalAlpha = oldGlobalAlpha;
-}
-
 function makeInputCallbacks(sock, canvas) {
     var enabled = false;
     var lastClick = null;
+    var highlightPos = null;
     function makeMove(event) {
         if(enabled) {
             msg = {};
@@ -88,6 +74,7 @@ function makeInputCallbacks(sock, canvas) {
             if(lastClick !== msg.contents) {
                 sock.send(JSON.stringify(msg));
                 lastClick = msg.contents;
+                highlightPos = lastClick;
             }
         }
     }
@@ -104,6 +91,27 @@ function makeInputCallbacks(sock, canvas) {
     var callbacks = {};
     callbacks.enable = makeCallback(true);
     callbacks.disable = makeCallback(false);
+    callbacks.overlayValidMoves = function(validMoves) {
+        var canvas = document.getElementById("chessBoardCanvas");
+        var ctx = canvas.getContext("2d");
+        var oldGlobalAlpha = ctx.globalAlpha;
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = "#00c000";
+        validMoves[1].forEach(function(e) {
+            var x = e[0][0]-1;
+            var y = e[0][1]-1;
+            var valid = e[1];
+            if(valid) { ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize); }
+        });
+        if(highlightPos != null) {
+            ctx.fillStyle = "#0000c0";
+            var x = highlightPos[0]-1;
+            var y = highlightPos[1]-1;
+            ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize);
+        }
+        ctx.globalAlpha = oldGlobalAlpha;
+    };
+
     return callbacks;
 }
 
@@ -113,7 +121,6 @@ function main() {
     var sock = new WebSocket(document.URL.replace("http", "ws"));
     var handlers = {};
     handlers["DisplayGameState"] = displayBoard;
-    handlers["DisplayValidMoves"] = overlayValidMoves;
     handlers["DisplayPlayerID"] = displayPlayerID;
     handlers["DisplayWhoseTurn"] = displayWhoseTurn;
     handlers["DisplayOpponentDisconnected"] = displayOpponentDisconnected;
@@ -124,6 +131,7 @@ function main() {
     inputCallbacks = makeInputCallbacks(sock, canvas);
     handlers["EnableInput"] = inputCallbacks.enable;
     handlers["DisableInput"] = inputCallbacks.disable;
+    handlers["DisplayValidMoves"] = inputCallbacks.overlayValidMoves;
     sock.onmessage = function(event) {
         content.textContent += event.data + "\n";
         var obj = JSON.parse(event.data);
