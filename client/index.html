@@ -94,6 +94,7 @@ function makeInputCallbacks(sock, canvas) {
     callbacks.overlayValidMoves = function(validMoves) {
         var canvas = document.getElementById("chessBoardCanvas");
         var ctx = canvas.getContext("2d");
+        var anyValid = false;
         var oldGlobalAlpha = ctx.globalAlpha;
         ctx.globalAlpha = 0.4;
         ctx.fillStyle = "#00c000";
@@ -101,9 +102,12 @@ function makeInputCallbacks(sock, canvas) {
             var x = e[0][0]-1;
             var y = e[0][1]-1;
             var valid = e[1];
-            if(valid) { ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize); }
+            if(valid) {
+                anyValid = true;
+                ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize);
+            }
         });
-        if(highlightPos != null) {
+        if((highlightPos != null) && anyValid) {
             ctx.fillStyle = "#0000c0";
             var x = highlightPos[0]-1;
             var y = highlightPos[1]-1;
