@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase, QuasiQuotes, TemplateHaskell, TupleSections #-}
 module ChessLogic where
+import ChessUtil
 import Control.Arrow
 import Control.Monad
 import Data.Array
@@ -11,11 +12,11 @@ import qualified Data.Aeson.TH as AT
 
 type Location = (Int, Int)
 data Move = Move { mvSource :: Location, mvDest :: Location } deriving Show
-newtype ChessBoard = ChessBoard (Array Location (Maybe ChessPiece))
+newtype ChessBoard = ChessBoard (Array Location (Maybe ChessPiece)) deriving Show
 data GameState = GameState {
     gsCurrentPlayer :: ChessPieceColor,
     gsBoard :: ChessBoard
-    }
+    } deriving Show
 
 instance A.ToJSON ChessBoard where toJSON (ChessBoard board) = A.toJSON $ assocs board
 instance A.FromJSON ChessBoard where parseJSON aList = fmap (ChessBoard . array ((1,1), (8, 8))) $ A.parseJSON aList
@@ -77,9 +78,24 @@ makeMove (GameState curPlayer (ChessBoard board)) = aux where
         piece@(ChessPiece Bishop _ _) -> straightLineMovement diagonalDeltas move piece
         piece@(ChessPiece Queen _ _) -> straightLineMovement (orthogonalDeltas ++ diagonalDeltas) move piece
         piece@(ChessPiece Knight _ _) -> moveIfInSet move piece (knightMoveSet src)
-        piece@(ChessPiece King _ _) -> moveIfInSet move piece (map ((x1+) *** (y1+)) (orthogonalDeltas ++ diagonalDeltas)) -- TODO: castling
-    pawnMoveSet col moved = map (case col of {Black -> negate; White -> id}) (if moved then [1] else [1,2])
+        piece@(ChessPiece King _ _) -> moveIfInSet move piece (kingMoveSet src) `onFailDo` castleMovement piece src dst
+    castleMovement (ChessPiece _ c1 moved) src@(x1, y1) (x2, y2) = do
+        when moved $ Left "The king must not have previously moved in order to castle."
+        when (y1 /= y2) $ Left "Castling is only valid within the same row."
+        when ((abs $ x2 - x1) /= 2) $ Left "Castling requires the king to move exactly 2 squares."
+        let deltaX = (x2 - x1) `div` 2
+        let squaresBetween = getByDelta board (deltaX, 0) src
+        let rookPos = fst $ foldl (\(rookPos, done) (i, e) -> if done then (rookPos, done) else case e of {
+            Just (ChessPiece Rook c2 False) | c1 == c2 -> (Just i, True);
+            Nothing -> (Nothing, False); _ -> (Nothing, True)}) (Nothing, False) squaresBetween
+        case rookPos of
+            Nothing -> Left "There is no path from the king to a same-colored, unmoved rook."
+            Just rookPos -> do
+                let newKing = ((x2, y2), Just (ChessPiece King c1 True))
+                let newRook = ((x1+deltaX, y1), Just (ChessPiece Rook c1 True))
+                Right (GameState (otherColor curPlayer) (ChessBoard $ board // [(src, Nothing), (rookPos, Nothing), newKing, newRook]))
     knightMoveSet (x, y) = let r = [-2, -1, 1, 2] in [(x+dx, y+dy) | dx <- r, dy <- r, abs dy /= abs dx]
+    kingMoveSet (x, y) = (map ((x+) *** (y+)) (orthogonalDeltas ++ diagonalDeltas))
     takeWhileUnoccupied = reverse . fst . foldl (\(a, done) (i,e) -> (if done then a else (i,e):a, done || isJust e)) ([], False)
     straightLineMovement deltas move@(Move src _) piece = moveIfInSet move piece $
         concatMap (\delta -> map fst . takeWhileUnoccupied $ getByDelta board delta src) deltas
