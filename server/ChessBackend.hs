@@ -99,4 +99,6 @@ playGame conn (sender, receiver) = handle (\e -> (e :: WS.ConnectionException) `
 
 main = do
     waitList <- newEmptyMVar
-    Warp.run 8000 (HWS.websocketsOr WS.defaultConnectionOptions (waitingRoom waitList) httpServer)
+    let portNumber = 8000
+    [sP|Listening on port %d.|] portNumber
+    Warp.run portNumber (HWS.websocketsOr WS.defaultConnectionOptions (waitingRoom waitList) httpServer)
