@@ -35,8 +35,7 @@ httpServer request respond = respond $ Wai.responseLBS HTTP.status200 [] htmlPag
 
 waitingRoom :: MVar (Chan ServerCommand, Chan (Maybe ClientCommand)) -> WS.ServerApp
 waitingRoom waitList pendingConn = do
-    sender <- newChan
-    receiver <- newChan
+    (sender, receiver) <- liftM2 (,) newChan newChan
     conn <- WS.acceptRequest pendingConn
     WS.forkPingThread conn 20
     tryTakeMVar waitList >>= \case
@@ -45,16 +44,12 @@ waitingRoom waitList pendingConn = do
             handle (\e -> (e :: WS.ConnectionException) `seq` writeChan receiver (Just ClientDisconnected)) $ do
                 WS.sendTextData conn . A.encode $ DisplayPlayerID White
                 forkIO . forever $ readChan sender >>= WS.sendTextData conn . A.encode
-                forever $ do
-                    msg <- fmap A.decode $ WS.receiveData conn >>= showReceived White
-                    writeChan receiver msg
+                forever $ WS.receiveData conn >>= showReceived White >>= return . A.decode >>= writeChan receiver
 
 showReceived player msg = putStrLn ([s|Received from %?: %?|] player msg) >> return msg
 
 playGame conn (sender, receiver) = handle (\e -> (e :: WS.ConnectionException) `seq` writeChan sender DisplayOpponentDisconnected) $ do
-    let broadcast msg = do
-        writeChan sender msg
-        WS.sendTextData conn $ A.encode msg
+    let broadcast msg = writeChan sender msg >> (WS.sendTextData conn $ A.encode msg)
     let { singlecast White msg = writeChan sender msg; singlecast Black msg = WS.sendTextData conn $ A.encode msg }
     let { getMessage White = readChan receiver; getMessage Black = fmap A.decode $ WS.receiveData conn >>= showReceived Black }
     currentGameState <- newIORef defaultGameState
