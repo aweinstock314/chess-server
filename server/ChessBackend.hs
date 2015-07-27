@@ -28,7 +28,7 @@ data ServerCommand = DisplayGameState GameState | DisplayValidMoves (Array Locat
 
 fmap concat $ mapM (AT.deriveJSON AT.defaultOptions) [''ClientCommand, ''ServerCommand]
 
-htmlPage = $(fileLiteral "../client/index.html")
+htmlPage = $(fileLiteral "client/index.html")
 
 httpServer :: Wai.Application
 httpServer request respond = respond $ Wai.responseLBS HTTP.status200 [] htmlPage
@@ -94,6 +94,6 @@ playGame conn (sender, receiver) = handle (\e -> (e :: WS.ConnectionException) `
 
 main = do
     waitList <- newEmptyMVar
-    let portNumber = 8000
+    portNumber <- fmap (maybe 8000 id . (>>= readMaybe)) $ getEnvMaybe "CHESS_SERVER_PORT"
     [sP|Listening on port %d.|] portNumber
     Warp.run portNumber (HWS.websocketsOr WS.defaultConnectionOptions (waitingRoom waitList) httpServer)
