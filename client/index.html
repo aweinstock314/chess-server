@@ -1,6 +1,6 @@
 <html>
 <head>
-<title>Chess Server - Multiplayer chess game, with a Haskell backend</title>
+<title>[ ] Chess Server - Multiplayer chess game, with a Haskell backend</title>
 <script>
 
 var tileSize = function() {
@@ -163,6 +163,7 @@ function displayPlayerID(str) {
 function displayWhoseTurn(str) {
     var pad = " ".repeat(10);
     stringOnCanvas(document.getElementById("whoseTurn"), pad + "It is currently " + str + "'s turn." + pad);
+    document.title = "[" + (str === "White" ? "\u2654" : "\u265A") + document.title.slice(2);
 }
 
 function displayOpponentDisconnected() {
